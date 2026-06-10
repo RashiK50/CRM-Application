@@ -28,8 +28,9 @@ def run_stream_simulation(delay_seconds: float = 0.5):
             
             try:
                 response = client.post(TARGET_URL, json=email, timeout=5.0)
-                if response.status_code == 222:
-                    print(f" -> Success: Ingested. Status verdict: {response.json().get('triage_verdict', {}).get('initial_status')}")
+                # Change 222 to 202 to match FastAPI's standard status.HTTP_202_ACCEPTED
+                if response.status_code == 202: 
+                    print(f" -> Success: Ingested. Server accepted processing ticket.")
                 else:
                     print(f" -> Failed: Server rejected payload with status code {response.status_code}")
             except Exception as e:

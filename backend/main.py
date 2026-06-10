@@ -2,13 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.database import engine, Base
 from backend.routers import ingest, threads, dashboard, respond, analytics, rag,agent, contacts, audit
+from fastapi.middleware.cors import CORSMiddleware
 
 # Automatically bootstrap SQLite database schemas on startup
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Agentic CRM Operations Hub",
-    description="Production-grade real-time email ingestion and multi-layer triage system.",
+    description="Production-grade real-time email ingestion and multi-layer  system.",
     version="2.0.0"
 )
 
@@ -22,9 +23,9 @@ app.add_middleware(
 )
 
 # Register endpoints from our routers
+app.include_router(dashboard.router)
 app.include_router(ingest.router)
 app.include_router(threads.router)
-app.include_router(dashboard.router)
 app.include_router(respond.router)
 app.include_router(analytics.router)
 app.include_router(rag.router)

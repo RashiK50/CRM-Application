@@ -2,18 +2,17 @@ import os
 import chromadb
 import google.generativeai as genai
 from typing import List, Dict, Any
+from backend.config import settings
 
 class RAGPipelineService:
     def __init__(self):
         # Configure Gemini API for Embeddings
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY", "MOCK_KEY"))
+        genai.configure(api_key=settings.GEMINI_API_KEY)
         self.embedding_model = "models/text-embedding-004"
         
         # Initialize Persistent ChromaDB Client
         self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
-        self.collection = self.chroma_client.get_or_create_collection(
-            name="company_policies"
-        )
+        self.collection = self.chroma_client.get_or_create_collection(name="company_policies")
 
     def _get_embedding(self, text: str) -> List[float]:
         """Generates a text embedding vector using the Gemini API."""
