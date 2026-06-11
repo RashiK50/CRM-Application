@@ -14,7 +14,7 @@ class LLMClassifierService:
     def classify_email(self, email_body: str, thread_history: List[Dict[str, str]] = []) -> LLMClassificationResponse:
         """Analyzes email context and returns structured classification metrics."""
         
-        # Format the thread history context for the model [cite: 49, 77]
+        # Format the thread history context for the model
         history_context = ""
         for msg in thread_history:
             history_context += f"Sender: {msg.get('sender')}\nContent: {msg.get('body')}\n---\n"
@@ -61,10 +61,33 @@ class LLMClassifierService:
             
             # Parse response text back into the system validation schema
             data = json.loads(response.text)
+            
+            # ==========================================
+            # THE ENGINEERING OVERRIDE (DETERMINISTIC LOCK)
+            # ==========================================
+            # ==========================================
+            # THE ENGINEERING OVERRIDE (DETERMINISTIC LOCK)
+            # ==========================================
+            # 1. Define hardcoded spam triggers that overrule the AI
+            spam_triggers = [
+                "attendee list", "offshore", "seo", "backlink", "guest post", 
+                "placement fee", "lead gen", "decision-makers", "synergy"
+            ]
+            
+            # 2. Check if the AI called it Spam, OR if the email body contains a trigger word
+            body_lower = email_body.lower()
+            is_spam = (data.get("category") == "Spam") or any(trigger in body_lower for trigger in spam_triggers)
+            
+            if is_spam:
+                data["category"] = "Spam"
+                data["requires_human"] = False
+                data["urgency"] = "Low"
+                data["escalation_reason"] = "Auto-filtered by heuristic spam trap."
+                
             return LLMClassificationResponse(**data)
             
         except Exception as e:
-            # Resilient fallback state for unconfigured keys or network issues [cite: 13]
+            # Resilient fallback state for unconfigured keys or network issues
             return LLMClassificationResponse(
                 category="Inquiry",
                 sentiment="Neutral",
