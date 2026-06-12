@@ -1,3 +1,4 @@
+import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import React, { useState, useEffect } from "react";
 import { 
   Inbox, 
@@ -9,17 +10,18 @@ import {
   Send, 
   RefreshCw, 
   TrendingUp, 
-  User 
+  User,
+  UserCheck 
 } from "lucide-react";
 
 function App() {
-  const [stats, setStats] = useState({ pending: 0, replied: 0, escalated: 0, critical: 0, spam_filtered: 0 });
+  const [stats, setStats] = useState({ pending: 0, replied: 0, resolved: 0, escalated: 0, critical: 0, spam_filtered: 0 });
   const [threads, setThreads] = useState([]);
   const [selectedThread, setSelectedThread] = useState(null);
   const [searchEmail, setSearchEmail] = useState("info.seeking@generic-firm.com");
   const [draftReply, setDraftReply] = useState("");
   const [loading, setLoading] = useState(false);
-
+  const [currentView, setCurrentView] = useState("inbox");
   const fetchStats = async () => {
     try {
       const res = await fetch("http://127.0.0.1:8000/api/dashboard/stats");
@@ -28,6 +30,7 @@ function App() {
         setStats({
           pending: data?.pending ?? 0,
           replied: data?.replied ?? 0,
+          resolved: data?.resolved ?? 0,
           escalated: data?.escalated ?? 0,
           critical: data?.critical ?? 0,
           spam_filtered: data?.spam_filtered ?? 0
@@ -70,8 +73,30 @@ function App() {
     }
   };
 
+  const fetchGlobalThreads = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/threads/global/recent");
+      if (res.ok) {
+        const data = await res.json();
+        setThreads(data);
+        // Automatically select the top thread if none is selected
+        if (data.length > 0 && !selectedThread) {
+          setSelectedThread(data[0]);
+          const latestEmail = data[0]?.emails?.[data[0].emails.length - 1];
+          setDraftReply(latestEmail?.proposed_draft || "");
+        }
+      }
+    } catch (err) {
+      console.error("Global threads fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
+    fetchGlobalThreads();
   }, []);
 
   const handleApproveDraft = async (emailId) => {
@@ -92,7 +117,6 @@ function App() {
     }
   };
 
-  // Ultra-Defensive Parser: Safely unpacks strings, objects, or arrays containing 'thought' or 'trace' fields
   // Ultra-Defensive Parser: Safely unpacks strings, objects, or arrays containing 'thought' or 'trace' fields
   const renderAgentTrace = (trace) => {
     if (!trace) return "No reasoning trace available.";
@@ -140,15 +164,34 @@ function App() {
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
       
       <header className="bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-3">
-          <Bot className="text-sky-400 w-8 h-8" />
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-white">Agentic CRM Core</h1>
-            <p className="text-xs text-slate-400">Mission Control Operator Interface</p>
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
+            <Bot className="text-sky-400 w-8 h-8" />
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-white">Agentic CRM Core</h1>
+              <p className="text-xs text-slate-400">Mission Control Operator Interface</p>
+            </div>
           </div>
+          
+          {/* NEW VIEW SWITCHING TABS */}
+          <nav className="flex gap-2 ml-4">
+            <button 
+              onClick={() => setCurrentView("inbox")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${currentView === "inbox" ? "bg-sky-400 text-slate-900" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}
+            >
+              Inbox Console
+            </button>
+            <button 
+              onClick={() => setCurrentView("analytics")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${currentView === "analytics" ? "bg-sky-400 text-slate-900" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}
+            >
+              Analytics Hub
+            </button>
+          </nav>
         </div>
+        
         <button 
-          onClick={fetchStats} 
+          onClick={() => { fetchStats(); fetchGlobalThreads(); }} // <--- NEW
           className="flex items-center gap-2 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-2 rounded-lg transition cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" /> Sync Ledger
@@ -157,7 +200,8 @@ function App() {
 
       <main className="flex-1 p-6 max-w-[1600px] w-full mx-auto flex flex-col gap-6">
         
-        <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Changed md:grid-cols-5 to lg:grid-cols-6 */}
+        <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center gap-4">
             <div className="p-3 bg-amber-500/10 text-amber-400 rounded-lg"><Inbox /></div>
             <div>
@@ -168,10 +212,20 @@ function App() {
           <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center gap-4">
             <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg"><CheckCircle /></div>
             <div>
-              <p className="text-xs text-slate-400 font-medium">Auto Replied</p>
+              <p className="text-xs text-slate-400 font-medium">Auto Replied (AI)</p>
               <h3 className="text-2xl font-bold text-white">{stats.replied}</h3>
             </div>
           </div>
+          
+          {/* NEW: Human Resolved Card */}
+          <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center gap-4">
+            <div className="p-3 bg-sky-500/10 text-sky-400 rounded-lg"><UserCheck /></div>
+            <div>
+              <p className="text-xs text-slate-400 font-medium">Human Resolved</p>
+              <h3 className="text-2xl font-bold text-white">{stats.resolved}</h3>
+            </div>
+          </div>
+
           <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center gap-4">
             <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-lg"><AlertTriangle /></div>
             <div>
@@ -195,6 +249,8 @@ function App() {
           </div>
         </section>
 
+
+        {currentView ==="inbox" ? (
         <section className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-[600px]">
           
           <div className="bg-slate-800 rounded-xl border border-slate-700 flex flex-col shadow-sm">
@@ -239,12 +295,20 @@ function App() {
                     }`}
                   >
                     <div className="flex justify-between items-start mb-1">
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-sky-400 border border-slate-700 font-bold uppercase">
-                        {t?.status || "UNKNOWN"}
-                      </span>
+                      {/* NEW CONDITIONAL BADGE LOGIC */}
+                      {t?.status === "Escalated" && t?.urgency === "Critical" ? (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800 font-bold uppercase shadow-sm">
+                          CRITICAL THREAT
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 text-sky-400 border border-slate-700 font-bold uppercase">
+                          {t?.status || "UNKNOWN"}
+                        </span>
+                      )}
                     </div>
-                    <h4 className="text-sm font-semibold text-white truncate">{t?.subject || "No Subject"}</h4>
-                    <p className="text-xs text-slate-400 truncate">{t?.thread_id || ""}</p>
+                    {/* NEW: Show the email address here */}
+                    <h4 className="text-sm font-semibold text-white truncate">{t?.customer_email || "Unknown Sender"}</h4>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{t?.subject || "No Subject"}</p>
                   </div>
                 ))
               )}
@@ -321,6 +385,10 @@ function App() {
           </div>
 
         </section>
+        ):(
+          
+            <AnalyticsDashboard />)
+        }
       </main>
     </div>
   );

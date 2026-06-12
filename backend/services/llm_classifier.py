@@ -62,17 +62,22 @@ class LLMClassifierService:
 
         === SEMANTIC CATEGORY DEFINITIONS ===
         
+        === SEMANTIC CATEGORY DEFINITIONS ===
+        
         1. THE SPAM BUCKET (Category: "Spam")
         - Intent: Unsolicited B2B sales, SEO services, offshore development pitches, list brokers, fake vanity awards, or generic lead generation.
         - Action Rules: You MUST set `requires_human` to false, and `urgency` to "Low". 
 
         2. THE ESCALATION BUCKET (Category: "Legal", "Compliance", or "Other")
         - Intent: Active security vulnerabilities (phishing, malware), threats of legal action, compliance violations, or severe system outages.
-        - Action Rules: You MUST set `requires_human` to true, and `urgency` to "High" or "Critical".
+        - Action Rules: You MUST set `requires_human` to true. 
+        - URGENCY RULES: If it is a cyber threat or breach, set `urgency` to "Critical". If it is a GDPR, CCPA, or data request, you MUST set `urgency` to "High" (NEVER "Critical").
 
         3. THE STANDARD QUEUE (Category: "Inquiry", "Bug Report", "Billing", "Feature Request")
         - Intent: Standard customer operations, questions, missing invoices, or software bugs.
         - Action Rules: Set `requires_human` to false if a standard AI auto-reply can handle it, OR set it to true if complex human intervention is needed.
+
+        4. CRITICAL RULE FOR URGENCY: GDPR, CCPA, or Data Portability requests are strictly 'High' urgency. You MUST ONLY assign 'Critical' urgency to active cyber threats, database breaches, or ransomware demands.
 
         === CONTEXT & PAYLOAD ===
         
@@ -119,17 +124,13 @@ class LLMClassifierService:
             # ==========================================
             # THE ENGINEERING OVERRIDE (DETERMINISTIC LOCK)
             # ==========================================
-            # ==========================================
-            # THE ENGINEERING OVERRIDE (DETERMINISTIC LOCK)
-            # ==========================================
-            # 1. Define hardcoded spam triggers that overrule the AI
+            body_lower = email_body.lower()
+            
+            # 1. THE SPAM TRAP
             spam_triggers = [
                 "attendee list", "offshore", "seo", "backlink", "guest post", 
                 "placement fee", "lead gen", "decision-makers", "synergy"
             ]
-            
-            # 2. Check if the AI called it Spam, OR if the email body contains a trigger word
-            body_lower = email_body.lower()
             is_spam = (data.get("category") == "Spam") or any(trigger in body_lower for trigger in spam_triggers)
             
             if is_spam:
@@ -137,7 +138,16 @@ class LLMClassifierService:
                 data["requires_human"] = False
                 data["urgency"] = "Low"
                 data["escalation_reason"] = "Auto-filtered by heuristic spam trap."
-                
+
+            # 2. THE COMPLIANCE LOCK (Fixes the GDPR bug)
+            # If it's a data request, force the LLM to calm down and set it to 'High' instead of 'Critical'
+            compliance_triggers = ["gdpr", "ccpa", "article 20", "data portability", "data export"]
+            if any(trigger in body_lower for trigger in compliance_triggers):
+                # Force Title Case so "critical", "CRITICAL", and "Critical" all get caught!
+                if str(data.get("urgency", "")).strip().title() == "Critical":
+                    data["urgency"] = "High"
+                    data["escalation_reason"] = "Standard compliance request (Urgency auto-demoted from Critical)."
+
             return LLMClassificationResponse(**data)
             
         except Exception as e:

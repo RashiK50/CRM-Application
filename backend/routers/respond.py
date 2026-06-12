@@ -22,7 +22,7 @@ def approve_and_send_draft(email_id: int, payload: ApprovalPayload, db: Session 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target email not found.")
 
     # 1. Transition parent email status to Replied and save the edited text
-    email.status = "Replied"
+    email.status = "Resolved"
     email.proposed_draft = payload.final_reply 
     
     # 2. Resolve the parent Thread

@@ -1,4 +1,5 @@
 import datetime
+import json
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from langgraph.graph import StateGraph, END
@@ -85,15 +86,30 @@ class AutonomousAgentService:
             final_state = self.graph.invoke(initial_state)
 
             # Extract final decisions from the trace
+            # Extract final decisions from the trace
             final_action = [step for step in final_state["reasoning_steps"] if step.get("tool") == "final_answer"][-1]
             final_inputs = final_action.get("tool_input", {})
             
-            final_status = final_inputs.get("status", "Escalated")
+            # 1. Grab raw status from LLM
+            raw_status = final_inputs.get("status", "Escalated")
             requires_human = final_inputs.get("requires_human", True)
+            
+            # Extract the proposed draft
             proposed_draft = final_inputs.get("draft_reply", "Ticket received. A senior manager has been assigned.")
-
-            # Hardcode overrides for safety
-            action_type = "Auto-Reply" if final_status == "Pending" else "Escalate"
+            
+            # 2. SANITIZE IT: Force "resolved" -> "Resolved", "auto-replied" -> "Auto-Replied"
+            clean_status = str(raw_status).strip().title()
+            
+            # 3. Let the AI win if it confidently auto-replied!
+            if clean_status in ["Auto-Replied", "Replied", "Resolved", "Answered"]:
+                action_type = "Auto-Reply"
+                requires_human = False
+                final_status = "Auto-Replied" # <--- FORCE EXACT MATCH FOR DASHBOARD
+            else:
+                action_type = "Escalate"
+                final_status = "Escalated" # Force standard casing for Escalate too
+                
+            # Keep your hardcoded safety override for Critical threats only
             if email.urgency == "Critical" or ai_metrics.urgency == "Critical":
                 final_status = "Escalated"
                 action_type = "Escalate"
@@ -102,19 +118,29 @@ class AutonomousAgentService:
             print(f"✅ [AGENT COMPLETE] Final Status: {final_status} | Action: {action_type}")
 
             # Persist to Database
+            # Persist to Database
             if not dry_run:
                 email.category = final_state["category"]
                 email.status = final_status
                 email.requires_human = requires_human
                 
+                # THE MISSING LINK: Actually save the cleaned urgency to the database!
+                email.urgency = str(ai_metrics.urgency).strip().title() 
+                
                 thread = db.query(Thread).filter(Thread.thread_id == email.thread_id).first()
                 if thread: thread.status = final_status
 
+                # 1. Safely convert the dictionary to a JSON string
+                safe_proposed_content = json.dumps(proposed_draft) if isinstance(proposed_draft, dict) else str(proposed_draft)
+                
+                # 2. Also convert the reasoning log to a string to be completely safe
+                safe_reasoning_log = json.dumps({"trace": final_state["reasoning_steps"]})
+
                 action = Action(
                     email_id=email.id,
-                    agent_reasoning_log={"trace": final_state["reasoning_steps"]},
+                    agent_reasoning_log=safe_reasoning_log,
                     action_type=action_type,
-                    proposed_content=proposed_draft,
+                    proposed_content=safe_proposed_content,
                     executed_at=datetime.datetime.utcnow()
                 )
                 db.add(action)
