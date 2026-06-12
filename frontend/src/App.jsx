@@ -93,13 +93,21 @@ function App() {
   };
 
   // Ultra-Defensive Parser: Safely unpacks strings, objects, or arrays containing 'thought' or 'trace' fields
+  // Ultra-Defensive Parser: Safely unpacks strings, objects, or arrays containing 'thought' or 'trace' fields
   const renderAgentTrace = (trace) => {
     if (!trace) return "No reasoning trace available.";
     
     if (typeof trace === "object") {
       // Check for common backend variation keys explicitly
       if (trace.thought) return String(trace.thought);
-      if (trace.trace) return String(trace.trace);
+      
+      // THE FIX: Properly format the array of objects instead of forcing it to a String
+      if (trace.trace) {
+        return typeof trace.trace === "object" 
+          ? JSON.stringify(trace.trace, null, 2) 
+          : String(trace.trace);
+      }
+      
       if (trace.ai_raw) return typeof trace.ai_raw === "object" ? JSON.stringify(trace.ai_raw, null, 2) : String(trace.ai_raw);
       
       // Fallback: Serialize cleanly if it's an unrecognized plain object shape
@@ -111,7 +119,14 @@ function App() {
       try {
         const parsed = JSON.deserialize ? JSON.deserialize(trace) : JSON.parse(trace);
         if (parsed.thought) return String(parsed.thought);
-        if (parsed.trace) return String(parsed.trace);
+        
+        // THE FIX: Apply the same formatting logic to the parsed string payload
+        if (parsed.trace) {
+          return typeof parsed.trace === "object" 
+            ? JSON.stringify(parsed.trace, null, 2) 
+            : String(parsed.trace);
+        }
+        
         return JSON.stringify(parsed, null, 2);
       } catch (e) {
         // Fall back to the raw text if parsing fails

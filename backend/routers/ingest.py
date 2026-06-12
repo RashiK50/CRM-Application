@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 import datetime
 
-from backend.database import get_db
+from database import get_db
 from backend.models import Email, Thread, Contact
 from backend.schemas import EmailIngestSchema
 from backend.services.heuristic import HeuristicFilterService
@@ -83,8 +83,8 @@ def ingest_email(
     db.refresh(new_email)
 
     # 6. Async Layer 2 Agent Loop Hand-off
-    if triage["initial_status"] != "Ignored":  # Skip executing LLMs/RAG for confirmed spam
-        background_tasks.add_task(orchestrator.process_email_lifecycle, new_email.id)
+    # if triage["initial_status"] != "Ignored":  # Skip executing LLMs/RAG for confirmed spam
+    background_tasks.add_task(orchestrator.process_email_lifecycle, new_email.id)
 
     return {
         "message": "Email ingested successfully. Processing started in background.",

@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi.testclient import TestClient
 from backend.main import app
-from backend.database import engine, Base, SessionLocal, get_db
+from database import engine, Base, SessionLocal, get_db
 from backend.models import Email, Thread, Contact
 
 # Dependency override

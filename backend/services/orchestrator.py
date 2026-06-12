@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy.orm import Session
-from backend.database import SessionLocal
+from database import SessionLocal
 from backend.services.agent import AutonomousAgentService
 from backend.services.sentiment import SentimentTrackerService
 from backend.models import Email

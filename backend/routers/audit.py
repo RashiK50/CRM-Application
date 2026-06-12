@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from backend.database import get_db
+from database import get_db
 from backend.models import AuditLog
 from typing import List, Dict, Any
 

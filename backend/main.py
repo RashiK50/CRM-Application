@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.database import engine, Base
+from database import engine, Base
 from backend.routers import ingest, threads, dashboard, respond, analytics, rag,agent, contacts, audit
 from fastapi.middleware.cors import CORSMiddleware
 

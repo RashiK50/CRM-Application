@@ -4,7 +4,7 @@ import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import engine, Base, SessionLocal
+from database import engine, Base, SessionLocal
 from backend.models import Email, Thread, Contact
 from backend.services.agent import AutonomousAgentService
 

@@ -2,7 +2,7 @@ import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from backend.database import get_db
+from database import get_db
 from backend.models import Email, Thread, Action, AuditLog
 
 # 1. Updated prefix to match the React frontend's fetch URL perfectly

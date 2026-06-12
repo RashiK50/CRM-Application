@@ -17,16 +17,17 @@ def seed_knowledge_base():
             "Pro-rata Billing: Seat upgrades made mid-cycle are charged on a pro-rata basis for remaining calendar days."
         ),
         "sla_policy.md": (
-            "Uptime SLA Policy: Guaranteed core availability is 99.9%. Incident Response Times: P0/Critical issues require "
-            "initial engineering acknowledgment within 15 minutes. Credit Calculation Formula: Downtime exceeding SLA bounds "
-            "entitles Enterprise tiers to a 10% monthly service credit. RCA Delivery SLA: A formal Root Cause Analysis (RCA) "
-            "report must be delivered to P0 affected accounts within 24 hours."
+            "Emergency Downtime Protocol for VIP Customers: "
+            "SenAI Solutions guarantees 99.9% platform uptime. In the event of a critical platform outage "
+            "or downtime exceeding 4 hours, Enterprise and VIP tier customers are automatically entitled to "
+            "a 20% compensation credit applied to their current billing cycle."
         ),
         "refund_policy.md": (
             "Standard Refund Rules: No cash refunds are permitted after 14 days of account creation or renewal. "
-            "Exception Handling: Valid exceptions are applied as platform service credits. Churn Retention Playbook: "
-            "For high-volume churn threats threatening negative public visibility, accounts are eligible for a 1-month "
-            "complimentary retention extension credit subject to manager approval."
+            "Exception Handling: Valid exceptions are applied as platform service credits. For severe billing errors "
+            "such as double-billing or duplicate transaction charges, customers are strictly entitled to an immediate "
+            "100% refund correction. Churn Retention Playbook: For high-volume churn threats threatening negative "
+            "public visibility, accounts are eligible for a 1-month complimentary retention extension credit."
         ),
         "api_docs.md": (
             "API Rate Limits: Free tier allows 60 req/min, Pro tier allows 1000 req/min, Enterprise tier allows 5000 req/min. "

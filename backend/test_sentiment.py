@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import engine, Base, SessionLocal
+from database import engine, Base, SessionLocal
 from backend.models import Email, Contact, Thread
 from backend.services.sentiment import SentimentTrackerService
 

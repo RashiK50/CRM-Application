@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from backend.database import get_db
+from database import get_db
 from backend.models import Contact, Thread
 from typing import Dict, Any
 

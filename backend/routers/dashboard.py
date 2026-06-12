@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from backend.database import get_db
+from database import get_db
 from backend.models import Email
 from typing import Dict, Any
 
@@ -27,9 +27,10 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     )
 
     return {
-        "pending": counts_dict.get("Received", 0) + counts_dict.get("Processing", 0),
+        # Add "Pending" to the calculation!
+        "pending": counts_dict.get("Received", 0) + counts_dict.get("Processing", 0) + counts_dict.get("Pending", 0),
         "replied": counts_dict.get("Replied", 0),
         "escalated": counts_dict.get("Escalated", 0),
         "critical": critical_count,
-        "spam_filtered": counts_dict.get("Ignored", 0)  # Heuristics pass assigns Ignored to Spam [cite: 170]
+        "spam_filtered": counts_dict.get("Ignored", 0)
     }

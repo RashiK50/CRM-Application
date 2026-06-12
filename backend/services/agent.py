@@ -1,103 +1,120 @@
-import os
-import sys
 import datetime
-from typing import Dict, Any, List, TypedDict
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 from langgraph.graph import StateGraph, END
 
-from backend.database import SessionLocal
-from backend.models import Email, Thread, Contact, Action, AuditLog
+from database import SessionLocal
+from backend.models import Email, Thread, Action
 from backend.services.llm_classifier import LLMClassifierService
 from backend.services.rag_pipeline import RAGPipelineService
 
-# Enforce LangGraph State Schema contract
-class AgentState(TypedDict):
-    email_id: int
-    thread_id: str
-    sender: str
-    body: str
-    history: List[Dict[str, str]]
-    category: str
-    urgency: str
-    requires_human: bool
-    suggested_reply: str
-    reasoning_steps: List[Dict[str, str]]
-    tool_counter: int
-    dry_run: bool
+# Import our beautifully segregated components
+from backend.services.agent_state import AgentState
+from backend.services.agent_tools import AgentTools
+from backend.services.agent_nodes import AgentNodes
 
 class AutonomousAgentService:
     def __init__(self):
         self.classifier = LLMClassifierService()
         self.rag = RAGPipelineService()
+        
+        # Initialize nodes with our LLM brain and RAG tool
+        # self.nodes = AgentNodes(brain=self.classifier.model, rag_service=self.rag)
+        self.nodes = AgentNodes(brain=self.classifier.client, rag_service=self.rag)
+        self.graph = self._build_graph()
 
-    def _get_thread_history(self, db: Session, thread_id: str) -> List[Dict[str, str]]:
-        """Tool: Retrieves previous turns in the conversation[cite: 116, 119]."""
-        emails = db.query(Email).filter(Email.thread_id == thread_id).order_by(Email.timestamp.asc()).all()
-        return [{"sender": e.sender, "body": e.body} for e in emails[:-1]]
-
-    def _check_crm_profile(self, db: Session, email: str) -> Dict[str, Any]:
-        """Tool: Fetches internal customer tiers and current health risk profiles[cite: 117, 120]."""
-        contact = db.query(Contact).filter(Contact.email == email).first()
-        if contact:
-            return {"status": contact.status, "value": float(contact.account_value), "risk": contact.churn_risk_score}
-        return {"status": "Active", "value": 0.00, "risk": 0.0}
+    def _build_graph(self):
+        """Compiles the LangGraph ReAct architecture."""
+        workflow = StateGraph(AgentState)
+        
+        workflow.add_node("think", self.nodes.node_think)
+        workflow.add_node("act", self.nodes.node_act)
+        
+        workflow.set_entry_point("think")
+        
+        workflow.add_conditional_edges(
+            "think",
+            self.nodes.route_execution,
+            {"act": "act", END: END}
+        )
+        
+        workflow.add_edge("act", "think")
+        return workflow.compile()
 
     def execute_triage(self, email_id: int, dry_run: bool = False) -> Dict[str, Any]:
-        """Main compilation runtime graph engine."""
+        """Main entry point for processing an email through the agent loop."""
         db = SessionLocal()
         try:
             email = db.query(Email).filter(Email.id == email_id).first()
-            if not email:
-                return {"error": "Email target node not found."}
+            if not email: return {"error": "Email target node not found."}
 
-            # Gather historical context layers [cite: 49]
-            history = self._get_thread_history(db, email.thread_id)
-            crm_profile = self._check_crm_profile(db, email.sender)
+            print(f"\n==============================================")
+            print(f"🚀 INITIATING AUTONOMOUS AGENT FOR EMAIL ID: {email_id}")
+            print(f"==============================================")
 
-            # Execution Layer 2 Classification [cite: 75-76]
+            # LAYER 1: The Traffic Cop (Spam Shield)
+            history = AgentTools.get_thread_history(db, email.thread_id)
             ai_metrics = self.classifier.classify_email(email.body, history)
+            
+            if ai_metrics.category == "Spam":
+                print(f"🛑 [TRAFFIC COP] Spam detected. Halting LangGraph initiation.")
+                if not dry_run:
+                    email.status = "Ignored"
+                    email.category = "Spam"
+                    db.commit()
+                return {"status": "Ignored", "category": "Spam"}
 
-            # RAG Document Grounding Pulls [cite: 103]
-            rag_context = self.rag.search_policies(f"{ai_metrics.category} {email.body}")
-            context_str = "\n".join([c["text"] for c in rag_context])
+            # LAYER 2: Initialize LangGraph State
+            initial_state: AgentState = {
+                "email_id": email_id,
+                "thread_id": email.thread_id,
+                "sender": email.sender,
+                "body": email.body,
+                "history": history,
+                "category": ai_metrics.category,
+                "urgency": email.urgency,
+                "requires_human": ai_metrics.requires_human,
+                "suggested_reply": "",
+                "reasoning_steps": [{"observation": f"Traffic Cop Category: {ai_metrics.category}"}],
+                "tool_counter": 0,
+                "dry_run": dry_run
+            }
 
-            # Edge Case Traps: Secure Compliance Check overrides [cite: 133, 212, 216]
-            final_status = "Replied"
-            action_type = "Auto-Reply"
-            requires_human = ai_metrics.requires_human
+            # EXECUTE THE GRAPH
+            print(f"⚡ [LANGGRAPH] Entering ReAct Loop...")
+            final_state = self.graph.invoke(initial_state)
 
-            if email.urgency == "Critical" or ai_metrics.urgency == "Critical" or requires_human:
+            # Extract final decisions from the trace
+            final_action = [step for step in final_state["reasoning_steps"] if step.get("tool") == "final_answer"][-1]
+            final_inputs = final_action.get("tool_input", {})
+            
+            final_status = final_inputs.get("status", "Escalated")
+            requires_human = final_inputs.get("requires_human", True)
+            proposed_draft = final_inputs.get("draft_reply", "Ticket received. A senior manager has been assigned.")
+
+            # Hardcode overrides for safety
+            action_type = "Auto-Reply" if final_status == "Pending" else "Escalate"
+            if email.urgency == "Critical" or ai_metrics.urgency == "Critical":
                 final_status = "Escalated"
                 action_type = "Escalate"
                 requires_human = True
 
-            # Construct system reasoning trail traces [cite: 131]
-            trace = [
-                {"thought": f"Classified inbound message into category: '{ai_metrics.category}' with {ai_metrics.confidence} confidence."},
-                {"action": f"Invoked RAG search engine. Found {len(rag_context)} corporate matches."},
-                {"observation": f"Evaluated account level profile context details: {crm_profile}."}
-            ]
+            print(f"✅ [AGENT COMPLETE] Final Status: {final_status} | Action: {action_type}")
 
-            proposed_reply = ai_metrics.suggested_reply or "Ticket received. A senior manager has been assigned to investigate."
-
-            # Save tracking states down to database ledgers if not running a dry run execution [cite: 131, 134]
+            # Persist to Database
             if not dry_run:
-                email.category = ai_metrics.category
+                email.category = final_state["category"]
                 email.status = final_status
                 email.requires_human = requires_human
-                email.confidence = ai_metrics.confidence
                 
-                # Update Thread tracking states [cite: 60]
                 thread = db.query(Thread).filter(Thread.thread_id == email.thread_id).first()
-                if thread:
-                    thread.status = final_status
+                if thread: thread.status = final_status
 
-                # Append to Actions trace ledger table [cite: 171-172]
                 action = Action(
                     email_id=email.id,
-                    agent_reasoning_log={"trace": trace, "ai_raw": ai_metrics.category},
+                    agent_reasoning_log={"trace": final_state["reasoning_steps"]},
                     action_type=action_type,
-                    proposed_content=proposed_reply,
+                    proposed_content=proposed_draft,
                     executed_at=datetime.datetime.utcnow()
                 )
                 db.add(action)
@@ -105,11 +122,9 @@ class AutonomousAgentService:
 
             return {
                 "email_id": email_id,
-                "category": ai_metrics.category,
-                "urgency": email.urgency,
                 "status": final_status,
-                "reasoning_trace": trace,
-                "proposed_draft": proposed_reply
+                "reasoning_trace": final_state["reasoning_steps"],
+                "proposed_draft": proposed_draft
             }
         finally:
             db.close()
