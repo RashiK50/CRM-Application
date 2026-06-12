@@ -1,0 +1,118 @@
+openapi: 3.0.3
+info:
+  title: Agentic CRM Core API
+  version: 1.0.0
+  description: Autonomous email routing, RAG execution, and CRM analytics API.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local development server
+
+paths:
+  /api/dashboard/stats:
+    get:
+      summary: Get Dashboard Metrics
+      tags:
+        - Dashboard
+      responses:
+        '200':
+          description: Mutually exclusive KPI counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending:
+                    type: integer
+                  replied:
+                    type: integer
+                  resolved:
+                    type: integer
+                  escalated:
+                    type: integer
+                  critical:
+                    type: integer
+                  spam_filtered:
+                    type: integer
+
+  /api/threads/global/recent:
+    get:
+      summary: Fetch Global Inbox Threads
+      tags:
+        - Threads Workspace
+      responses:
+        '200':
+          description: A list of the 50 most recently updated threads across all users.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ThreadResponse'
+
+  /api/respond/approve/{email_id}:
+    post:
+      summary: Human-in-the-Loop Override
+      description: Approves an AI-proposed draft and marks the thread as Resolved.
+      tags:
+        - Response Execution
+      parameters:
+        - name: email_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successfully resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+        '404':
+          description: Email ID not found
+
+components:
+  schemas:
+    ThreadResponse:
+      type: object
+      properties:
+        thread_id:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+        assigned_to:
+          type: string
+        customer_email:
+          type: string
+        last_updated_at:
+          type: string
+          format: date-time
+        emails:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              message_id:
+                type: string
+              body:
+                type: string
+              category:
+                type: string
+              urgency:
+                type: string
+              status:
+                type: string
+              agent_trace:
+                type: string
+              proposed_draft:
+                type: string
